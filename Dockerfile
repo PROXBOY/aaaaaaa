@@ -64,17 +64,9 @@ RUN apt update && apt upgrade -y && \
 # Pypi package Repo upgrade
 RUN pip3 install --upgrade pip setuptools
 
-# Copy Python Requirements to /root/MashaRoBot
-RUN git clone -b shiken https://github.com/satyanandatripathi/emcee /root/MashaRoBot
-WORKDIR /root/MashaRoBot
-
-#Copy config file to /root/MashaRoBot/MashaRoBot
-COPY ./MashaRoBot/sample_config.py ./MashaRoBot/config.py* /root/MashaRoBot/MashaRoBot/
-
-ENV PATH="/home/bot/bin:$PATH"
 
 # Install requirements
 RUN pip3 install -U -r requirements.txt
 
 # Starting Worker
-CMD ["python3","-m","MashaRoBot"]
+CMD ["python3","-m","Patricia"]
