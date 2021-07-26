@@ -1,14 +1,7 @@
-from Patricia import (
-    telethn,
-    SUDO_USERS,
-    WHITELIST_USERS,
-    SUPPORT_USERS,
-    SARDEGNA_USERS,
-    DEV_USERS,
+from MashaRoBot import DEV_USERS, DRAGONS, DEMONS, TIGERS, WOLVES, telethn
+
+IMMUNE_USERS = DRAGONS + WOLVES + DEMONS + TIGERS + DEV_USERS
+
+IMMUNE_USERS = (
+    list(DRAGONS) + list(WOLVES) + list(DEMONS) + list(TIGERS) + list(DEV_USERS)
 )
-
-HIGHER_AUTH = SUDO_USERS + DEV_USERS
-
-HIGHER_AUTH = list(SUDO_USERS) + list(DEV_USERS)
-
-HIGHER_AUTH.append(1087968824)
