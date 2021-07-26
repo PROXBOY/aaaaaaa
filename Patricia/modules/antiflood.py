@@ -1,25 +1,12 @@
 import html
-import re
 from typing import Optional, List
+import re
 
-from telegram import (
-    Message,
-    Chat,
-    Update,
-    Bot,
-    User,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    ParseMode,
-    ChatPermissions,
-)
+from telegram import Message, Chat, Update, User, ChatPermissions
 
-from Patricia import SARDEGNA_USERS, WHITELIST_USERS, dispatcher
-from Patricia.modules.sql.approve_sql import is_approved
+from Patricia import TIGERS, WOLVES, dispatcher
 from Patricia.modules.helper_funcs.chat_status import (
     bot_admin,
-    can_restrict,
-    connection_status,
     is_user_admin,
     user_admin,
     user_admin_no_reply,
@@ -28,27 +15,23 @@ from Patricia.modules.log_channel import loggable
 from Patricia.modules.sql import antiflood_sql as sql
 from telegram.error import BadRequest
 from telegram.ext import (
-    Filters,
     CallbackContext,
+    CallbackQueryHandler,
+    CommandHandler,
+    Filters,
+    MessageHandler,
+    run_async,
 )
 from telegram.utils.helpers import mention_html, escape_markdown
-from Patricia import dispatcher
-from Patricia.modules.helper_funcs.chat_status import (
-    is_user_admin,
-    user_admin,
-    can_restrict,
-)
 from Patricia.modules.helper_funcs.string_handling import extract_time
-from Patricia.modules.log_channel import loggable
-from Patricia.modules.sql import antiflood_sql as sql
 from Patricia.modules.connection import connected
 from Patricia.modules.helper_funcs.alternate import send_message
-from Patricia.modules.helper_funcs.decorators import kigcmd, kigmsg, kigcallback
+from Patricia.modules.sql.approve_sql import is_approved
 
-FLOOD_GROUP = -5
+FLOOD_GROUP = 3
 
-@kigmsg((Filters.all & ~Filters.status_update & Filters.chat_type.groups), group=FLOOD_GROUP)
-@connection_status
+
+@run_async
 @loggable
 def check_flood(update, context) -> str:
     user = update.effective_user  # type: Optional[User]
@@ -58,18 +41,13 @@ def check_flood(update, context) -> str:
         return ""
 
     # ignore admins and whitelists
-    if (
-        is_user_admin(chat, user.id)
-        or user.id in WHITELIST_USERS
-        or user.id in SARDEGNA_USERS
-    ):
+    if is_user_admin(chat, user.id) or user.id in WOLVES or user.id in TIGERS:
         sql.update_flood(chat.id, None)
         return ""
-      # ignore approved users
+    # ignore approved users
     if is_approved(chat.id, user.id):
         sql.update_flood(chat.id, None)
         return
-
     should_ban = sql.update_flood(chat.id, user.id)
     if not should_ban:
         return ""
@@ -115,7 +93,9 @@ def check_flood(update, context) -> str:
             "\n#{}"
             "\n<b>User:</b> {}"
             "\nFlooded the group.".format(
-                tag, html.escape(chat.title), mention_html(user.id, user.first_name)
+                tag,
+                html.escape(chat.title),
+                mention_html(user.id, html.escape(user.first_name)),
             )
         )
 
@@ -133,9 +113,9 @@ def check_flood(update, context) -> str:
         )
 
 
+@run_async
 @user_admin_no_reply
 @bot_admin
-@kigcallback(pattern=r"unmute_flooder")
 def flood_button(update: Update, context: CallbackContext):
     bot = context.bot
     query = update.callback_query
@@ -156,16 +136,15 @@ def flood_button(update: Update, context: CallbackContext):
                 ),
             )
             update.effective_message.edit_text(
-                f"Unmuted by {mention_html(user.id, user.first_name)}.",
+                f"Unmuted by {mention_html(user.id, html.escape(user.first_name))}.",
                 parse_mode="HTML",
             )
         except:
             pass
 
-@kigcmd(command='setflood', pass_args=True, filters=Filters.chat_type.groups)
-@connection_status
+
+@run_async
 @user_admin
-@can_restrict
 @loggable
 def set_flood(update, context) -> str:
     chat = update.effective_chat  # type: Optional[Chat]
@@ -189,7 +168,7 @@ def set_flood(update, context) -> str:
 
     if len(args) >= 1:
         val = args[0].lower()
-        if val == "off" or val == "no" or val == "0":
+        if val in ["off", "no", "0"]:
             sql.set_flood(chat_id, 0)
             if conn:
                 text = message.reply_text(
@@ -213,7 +192,8 @@ def set_flood(update, context) -> str:
                     "\n#SETFLOOD"
                     "\n<b>Admin:</b> {}"
                     "\nDisable antiflood.".format(
-                        html.escape(chat_name), mention_html(user.id, user.first_name)
+                        html.escape(chat_name),
+                        mention_html(user.id, html.escape(user.first_name)),
                     )
                 )
 
@@ -242,7 +222,7 @@ def set_flood(update, context) -> str:
                     "\n<b>Admin:</b> {}"
                     "\nSet antiflood to <code>{}</code>.".format(
                         html.escape(chat_name),
-                        mention_html(user.id, user.first_name),
+                        mention_html(user.id, html.escape(user.first_name)),
                         amount,
                     )
                 )
@@ -259,8 +239,7 @@ def set_flood(update, context) -> str:
     return ""
 
 
-@connection_status
-@kigcmd(command="flood", filters=Filters.chat_type.groups)
+@run_async
 def flood(update, context):
     chat = update.effective_chat  # type: Optional[Chat]
     user = update.effective_user  # type: Optional[User]
@@ -302,7 +281,8 @@ def flood(update, context):
                 )
             )
 
-@kigcmd(command="setfloodmode", pass_args=True, filters=Filters.chat_type.groups)
+
+@run_async
 @user_admin
 def set_flood_mode(update, context):
     chat = update.effective_chat  # type: Optional[Chat]
@@ -378,7 +358,7 @@ Examples of time value: 4m = 4 minutes, 3h = 3 hours, 6d = 6 days, 5w = 5 weeks.
             "Has changed antiflood mode. User will {}.".format(
                 settypeflood,
                 html.escape(chat.title),
-                mention_html(user.id, user.first_name),
+                mention_html(user.id, html.escape(user.first_name)),
             )
         )
     else:
@@ -419,9 +399,47 @@ def __chat_settings__(chat_id, user_id):
     else:
         return "Antiflood has been set to`{}`.".format(limit)
 
-from Patricia.modules.language import gs
 
-def get_help(chat):
-    return gs(chat, "antiflood_help")
+__help__ = """
+*Antiflood* allows you to take action on users that send more than x messages in a row. Exceeding the set flood \
+will result in restricting that user.
+ This will mute users if they send more than 10 messages in a row, bots are ignored.
 
-__mod_name__ = "Anti-Flood"
+ ✪ /flood*:* Get the current flood control setting
+• *Admins only:*
+ ✪ /setflood <int/'no'/'off'>*:* enables or disables flood control
+ *Example:* `/setflood 10`
+ ✪ /setfloodmode <ban/kick/mute/tban/tmute> <value>*:* Action to perform when user have exceeded flood limit. ban/kick/mute/tmute/tban
+• *Note:*
+ • Value must be filled for tban and tmute!!
+ It can be:
+ `5m` = 5 minutes
+ `6h` = 6 hours
+ `3d` = 3 days
+ `1w` = 1 week
+ """
+
+__mod_name__ = "Cᴏɴᴛʀᴏʟ"
+
+FLOOD_BAN_HANDLER = MessageHandler(
+    Filters.all & ~Filters.status_update & Filters.group, check_flood
+)
+SET_FLOOD_HANDLER = CommandHandler("setflood", set_flood, filters=Filters.group)
+SET_FLOOD_MODE_HANDLER = CommandHandler(
+    "setfloodmode", set_flood_mode, pass_args=True
+)  # , filters=Filters.group)
+FLOOD_QUERY_HANDLER = CallbackQueryHandler(flood_button, pattern=r"unmute_flooder")
+FLOOD_HANDLER = CommandHandler("flood", flood, filters=Filters.group)
+
+dispatcher.add_handler(FLOOD_BAN_HANDLER, FLOOD_GROUP)
+dispatcher.add_handler(FLOOD_QUERY_HANDLER)
+dispatcher.add_handler(SET_FLOOD_HANDLER)
+dispatcher.add_handler(SET_FLOOD_MODE_HANDLER)
+dispatcher.add_handler(FLOOD_HANDLER)
+
+__handlers__ = [
+    (FLOOD_BAN_HANDLER, FLOOD_GROUP),
+    SET_FLOOD_HANDLER,
+    FLOOD_HANDLER,
+    SET_FLOOD_MODE_HANDLER,
+]
